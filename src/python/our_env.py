@@ -10,7 +10,7 @@ from gym.error import DependencyNotInstalled
 class OurEnv(AcrobotEnv):
 
     # it's trivial to add more granulation to possible torques
-    AVAIL_TORQUE = [-1.0, 0.0, +1]
+    AVAIL_TORQUE = [-1.0 - 0.5, -0.1, 0.0, 0.1, 0.5, 1.0]
 
     # with noise environment becomes stochastisc rather than deterministic
     torque_noise_max = 0.0
@@ -28,22 +28,31 @@ class OurEnv(AcrobotEnv):
                 0  # omega2
             ],)
         super().__init__(render_mode)
+        high = np.array([pi, pi, self.MAX_VEL_1, self.MAX_VEL_2],
+                        dtype=np.float32)
+        low = -high
+        self.observation_space = spaces.Box(low=low,
+                                            high=high,
+                                            dtype=np.float32)
+        self.action_space = spaces.Discrete(len(self.AVAIL_TORQUE))
 
     def _terminal(self):
         # state is array of size 4: [theta1, theta2, omega1, omega2]
         assert self.state is not None, "Call reset before using AcrobotEnv object."
         return np.allclose(self.state, self.final_state)
 
+    def _get_ob(self):
+        s = self.state
+        assert s is not None, "Call reset before using AcrobotEnv object."
+        return s.astype(np.float32)
+
     def step(self, action: int):
         # override reward to have intermediate rewards
         observation, reward, terminated, truncated, info = super().step(action)
-        distance = np.linalg.norm(self.final_state - self.state)
-        if distance < self.proximity_threshold:
-            reward = 100 / np.linalg.norm(self.final_state - self.state)**3
-        # IDEA: have position and velocity distances and evaluate different
-        # rewards based on each
-        # pos_distance = np.linalg.norm(self.final_state[:2] - self.state[:2])
-        # vel_distance = np.linalg.norm(self.final_state[2:] - self.state[2:])
+        # distance = np.linalg.norm(self.final_state - self.state)
+        pos_distance = np.linalg.norm(self.final_state[:2] - self.state[:2])
+        vel_distance = np.linalg.norm(self.final_state[2:] - self.state[2:])
+        reward = 100 / (vel_distance**2 + pos_distance**2)
         return observation, reward, terminated, truncated, info
 
     def render(self):
