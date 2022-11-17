@@ -184,10 +184,10 @@ class OurEnv(AcrobotEnv):
                 coord = pygame.math.Vector2(coord).rotate_rad(th)
                 coord = (coord[0] + x, coord[1] + y)
                 transformed_coords.append(coord)
-            gfxdraw.aapolygon(surf, transformed_coords, (204, 50, 120))
-            gfxdraw.filled_polygon(surf, transformed_coords, (204, 50, 120))
+            gfxdraw.aapolygon(surf, transformed_coords, (200, 200, 200))
+            gfxdraw.filled_polygon(surf, transformed_coords, (200, 200, 200))
 
             gfxdraw.aacircle(surf, int(x), int(y), int(0.1 * scale),
-                             (0, 50, 120))
+                             (120, 120, 120))
             gfxdraw.filled_circle(surf, int(x), int(y), int(0.1 * scale),
-                                  (0, 50, 120))
+                                  (120, 120, 120))
