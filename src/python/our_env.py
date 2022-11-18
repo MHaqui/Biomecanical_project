@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import cos, pi, sin
+from scipy.stats import hmean
 
 import gym
 from gym import core, logger, spaces
@@ -7,15 +8,24 @@ from gym.envs.classic_control.acrobot import AcrobotEnv, wrap
 from gym.error import DependencyNotInstalled
 
 
+def theta_to_pos(thetas, lengths, x0=0, y0=0):
+    res = [[x0, y0]]
+    for theta, length in zip(thetas, lengths):
+        res.append([
+            res[-1][0] + sin(theta) * length, res[-1][1] + cos(theta) * length
+        ])
+    return np.array(res[1:])
+
+
 class OurEnv(AcrobotEnv):
 
     # it's trivial to add more granulation to possible torques
-    AVAIL_TORQUE = [-1.0 - 0.5, -0.1, 0.0, 0.1, 0.5, 1.0]
+    AVAIL_TORQUE = [-0.5, -0.1, 0.0, 0.1, 0.5]
 
     # with noise environment becomes stochastisc rather than deterministic
     torque_noise_max = 0.0
 
-    proximity_threshold = 2
+    proximity_threshold = .25
 
     def __init__(self,
                  final_state: tuple[float, float],
@@ -27,6 +37,8 @@ class OurEnv(AcrobotEnv):
                 0,  # omega1
                 0  # omega2
             ],)
+        self.final_pos = theta_to_pos(self.final_state[:2],
+                                      [self.LINK_LENGTH_1, self.LINK_LENGTH_2])
         super().__init__(render_mode)
         high = np.array([pi, pi, self.MAX_VEL_1, self.MAX_VEL_2],
                         dtype=np.float32)
@@ -49,10 +61,18 @@ class OurEnv(AcrobotEnv):
     def step(self, action: int):
         # override reward to have intermediate rewards
         observation, reward, terminated, truncated, info = super().step(action)
-        # distance = np.linalg.norm(self.final_state - self.state)
-        pos_distance = np.linalg.norm(self.final_state[:2] - self.state[:2])
+
+        pos = theta_to_pos(self.state[:2],
+                           [self.LINK_LENGTH_1, self.LINK_LENGTH_2])
+        pos_distance = np.linalg.norm(self.final_pos - pos, axis=1)
         vel_distance = np.linalg.norm(self.final_state[2:] - self.state[2:])
-        reward = 100 / (vel_distance**2 + pos_distance**2)
+
+        if (pos_distance**2).sum() < self.proximity_threshold:
+            reward = hmean(1 / (pos_distance)**2 + 1e-8) / (
+                (10 * vel_distance)**4 + 1e-8)
+        else:
+            reward = -1e6
+
         return observation, reward, terminated, truncated, info
 
     def render(self):

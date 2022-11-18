@@ -15,13 +15,12 @@ observation, info = env.reset(**reset_args)
 
 input_shape = env.observation_space.shape
 n_outputs = env.action_space.n
-model = tf.keras.models.load_model('models/model1.h5')
+model = tf.keras.models.load_model('models/model2.h5')
 print(model.summary())
 
 
 def policy(state):
     pred = model.predict(state[np.newaxis], verbose=0)[0]
-    print(pred)
     return np.argmax(pred)
 
 
