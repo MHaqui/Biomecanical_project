@@ -1,96 +1,68 @@
 import numpy as np
 from numpy import cos, pi, sin
-from scipy.stats import hmean
 
-import gym
-from gym import core, logger, spaces
-from gym.envs.classic_control.acrobot import AcrobotEnv, wrap
-from gym.error import DependencyNotInstalled
+from gym import spaces
+from gym.envs.classic_control.acrobot import AcrobotEnv, bound, rk4, wrap
 
-
-def theta_to_pos(thetas, lengths, x0=0, y0=0):
-    res = [[x0, y0]]
-    for theta, length in zip(thetas, lengths):
-        res.append([
-            res[-1][0] + sin(theta) * length, res[-1][1] + cos(theta) * length
-        ])
-    return np.array(res[1:])
+import pygame
+from pygame import gfxdraw
 
 
-class OurEnv(AcrobotEnv):
+class AcrobotContActions(AcrobotEnv):
 
-    # it's trivial to add more granulation to possible torques
-    AVAIL_TORQUE = [-0.5, -0.1, 0.0, 0.1, 0.5]
+    AVAIL_TORQUE = [-2, 2]
 
-    # with noise environment becomes stochastisc rather than deterministic
     torque_noise_max = 0.0
 
-    proximity_threshold = .25
-
-    def __init__(self,
-                 final_state: tuple[float, float],
-                 render_mode: str | None = None):
-        self.final_state = np.array(
-            [
-                wrap(final_state[0], -np.pi, np.pi),  # theta1
-                wrap(final_state[1], -np.pi, np.pi),  # theta1
-                0,  # omega1
-                0  # omega2
-            ],)
-        self.final_pos = theta_to_pos(self.final_state[:2],
-                                      [self.LINK_LENGTH_1, self.LINK_LENGTH_2])
+    def __init__(self, render_mode: str):
         super().__init__(render_mode)
         high = np.array([pi, pi, self.MAX_VEL_1, self.MAX_VEL_2],
                         dtype=np.float32)
-        low = -high
-        self.observation_space = spaces.Box(low=low,
+        self.observation_space = spaces.Box(low=-high,
                                             high=high,
                                             dtype=np.float32)
-        self.action_space = spaces.Discrete(len(self.AVAIL_TORQUE))
+        self.action_space = spaces.Box(low=self.AVAIL_TORQUE[0],
+                                       high=self.AVAIL_TORQUE[1],
+                                       dtype=np.float32)
 
     def _terminal(self):
-        # state is array of size 4: [theta1, theta2, omega1, omega2]
-        assert self.state is not None, "Call reset before using AcrobotEnv object."
-        return np.allclose(self.state, self.final_state)
+        theta1, theta2, omega1, omega2 = self._get_ob()
+        return cos(theta1) <= -.95 and cos(theta2) >= .95 and np.abs(
+            omega1) <= .5 and np.abs(omega2) <= .5
 
     def _get_ob(self):
+        # state is array of size 4: [theta1, theta2, omega1, omega2]
         s = self.state
-        assert s is not None, "Call reset before using AcrobotEnv object."
+        assert s is not None, "Call reset before using this environment"
         return s.astype(np.float32)
 
-    def step(self, action: int):
-        # override reward to have intermediate rewards
-        observation, reward, terminated, truncated, info = super().step(action)
+    def step(self, torque):
+        s = self._get_ob()
 
-        pos = theta_to_pos(self.state[:2],
-                           [self.LINK_LENGTH_1, self.LINK_LENGTH_2])
-        pos_distance = np.linalg.norm(self.final_pos - pos, axis=1)
-        vel_distance = np.linalg.norm(self.final_state[2:] - self.state[2:])
+        # Add noise to the force action
+        if self.torque_noise_max > 0:
+            torque += self.np_random.uniform(-self.torque_noise_max,
+                                             self.torque_noise_max)
 
-        if (pos_distance**2).sum() < self.proximity_threshold:
-            reward = hmean(1 / (pos_distance)**2 + 1e-8) / (
-                (10 * vel_distance)**4 + 1e-8)
-        else:
-            reward = -1e6
+        # Now, augment the state with our force action so it can be passed to
+        # _dsdt
+        s_augmented = np.append(s, torque)
 
-        return observation, reward, terminated, truncated, info
+        ns = rk4(self._dsdt, s_augmented, [0, self.dt])
+
+        ns[0] = wrap(ns[0], -pi, pi)
+        ns[1] = wrap(ns[1], -pi, pi)
+        ns[2] = bound(ns[2], -self.MAX_VEL_1, self.MAX_VEL_1)
+        ns[3] = bound(ns[3], -self.MAX_VEL_2, self.MAX_VEL_2)
+        self.state = ns
+        terminated = self._terminal()
+        reward = -1.0 if not terminated else 0.0
+
+        if self.render_mode == "human":
+            self.render()
+        return (self._get_ob(), reward, terminated, False, {})
 
     def render(self):
-        if self.render_mode is None:
-            logger.warn(
-                "You are calling render method without specifying any render mode. "
-                "You can specify the render_mode at initialization, "
-                f'e.g. gym("{self.spec.id}", render_mode="rgb_array")')
-            return
-
-        try:
-            import pygame
-            from pygame import gfxdraw
-        except ImportError:
-            raise DependencyNotInstalled(
-                "pygame is not installed, run `pip install gym[classic_control]`"
-            )
-
         if self.screen is None:
             pygame.init()
             if self.render_mode == "human":
@@ -174,14 +146,7 @@ class OurEnv(AcrobotEnv):
                                 axes=(1, 0, 2))
 
     def render_final_state(self, scale, offset, surf):
-        try:
-            import pygame
-            from pygame import gfxdraw
-        except ImportError:
-            raise DependencyNotInstalled(
-                "pygame is not installed, run `pip install gym[classic_control]`"
-            )
-        s = self.final_state
+        s = [pi, 0]
         p1 = [
             -self.LINK_LENGTH_1 * cos(s[0]) * scale,
             self.LINK_LENGTH_1 * sin(s[0]) * scale,
