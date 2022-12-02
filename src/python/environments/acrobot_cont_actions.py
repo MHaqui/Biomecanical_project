@@ -7,22 +7,24 @@ from gym.envs.classic_control.acrobot import AcrobotEnv, bound, rk4, wrap
 import pygame
 from pygame import gfxdraw
 
+from typing import Optional
+
 
 class AcrobotContActions(AcrobotEnv):
 
-    AVAIL_TORQUE = [-2, 2]
+    TORQUE_SCALE = 2
 
     torque_noise_max = 0.0
 
-    def __init__(self, render_mode: str):
+    def __init__(self, render_mode: Optional[str] = None):
         super().__init__(render_mode)
         high = np.array([pi, pi, self.MAX_VEL_1, self.MAX_VEL_2],
                         dtype=np.float32)
         self.observation_space = spaces.Box(low=-high,
                                             high=high,
                                             dtype=np.float32)
-        self.action_space = spaces.Box(low=self.AVAIL_TORQUE[0],
-                                       high=self.AVAIL_TORQUE[1],
+        self.action_space = spaces.Box(low=-1,
+                                       high=1,
                                        dtype=np.float32)
 
     def _terminal(self):
@@ -36,8 +38,10 @@ class AcrobotContActions(AcrobotEnv):
         assert s is not None, "Call reset before using this environment"
         return s.astype(np.float32)
 
-    def step(self, torque):
+    def step(self, action):
         s = self._get_ob()
+
+        torque = action * self.TORQUE_SCALE
 
         # Add noise to the force action
         if self.torque_noise_max > 0:
