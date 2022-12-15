@@ -23,14 +23,11 @@ class AcrobotContActions(AcrobotEnv):
         self.observation_space = spaces.Box(low=-high,
                                             high=high,
                                             dtype=np.float32)
-        self.action_space = spaces.Box(low=-1,
-                                       high=1,
-                                       dtype=np.float32)
+        self.action_space = spaces.Box(low=-1, high=1, dtype=np.float32)
 
     def _terminal(self):
         theta1, theta2, omega1, omega2 = self._get_ob()
-        return cos(theta1) <= -.95 and cos(theta2) >= .95 and np.abs(
-            omega1) <= .5 and np.abs(omega2) <= .5
+        return np.abs(omega1) <= .5 and np.abs(omega2) <= .5
 
     def _get_ob(self):
         # state is array of size 4: [theta1, theta2, omega1, omega2]
@@ -40,8 +37,7 @@ class AcrobotContActions(AcrobotEnv):
 
     def step(self, action):
         s = self._get_ob()
-
-        torque = action * self.TORQUE_SCALE
+        torque = action
 
         # Add noise to the force action
         if self.torque_noise_max > 0:

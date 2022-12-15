@@ -9,14 +9,8 @@ import matplotlib.pyplot as plt
 from CACLA import CACLA
 
 env = AcrobotContActions(render_mode="human")
-reset_args = {
-    "seed": 42,
-    "options": {
-        "low": -np.pi / 2,
-        "high": np.pi / 2
-    },
-}
-observation, info = env.reset(**reset_args)
+options = {"low": -np.pi / 2, "high": np.pi / 2}
+observation, info = env.reset(options=options)
 
 model = CACLA(env.observation_space.shape,
               [1 / np.pi, 1 / np.pi, 1 / env.MAX_VEL_1, 1 / env.MAX_VEL_2], 12)
@@ -30,7 +24,7 @@ def policy(state):
 actions = []
 rewards = []
 
-for _ in range(500):
+for _ in range(300):
     action = policy(observation)
     actions.append(action)
 
@@ -39,7 +33,7 @@ for _ in range(500):
     rewards.append(reward)
 
     if terminated or truncated:
-        observation, info = env.reset(**reset_args)
+        observation, info = env.reset(options=options)
 
 env.close()
 
