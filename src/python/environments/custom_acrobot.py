@@ -1,3 +1,6 @@
+import pickle
+from pathlib import Path
+
 import numpy as np
 from numpy import cos, pi, sin
 
@@ -92,6 +95,21 @@ class CustomAcrobot(AcrobotEnv):
         self.reward_func = reward_func
         self.terminal_func = terminal_func
 
+    @classmethod
+    def from_file(cls, filename) -> 'CustomAcrobot':
+        """Create environment from saved file.
+
+        Examples:
+            >>> env = CustomAcrobot.from_file('test.pickle')
+        """
+        path = Path(filename).resolve()
+        if not path.exists():
+            print(f'{path} not found.')
+            return
+        with path.open('rb') as file:
+            obj = pickle.load(file)
+        return obj
+
     def _apply_torque(self, torque: float) -> ArrayLike:
         # Add noise to the force action
         if self.torque_noise_max > 0:
@@ -141,3 +159,22 @@ class CustomAcrobot(AcrobotEnv):
                  cos(s[1]),
                  sin(s[1]), s[2], s[3]],
                 dtype=np.float32)
+
+    def save(self, filename, overwrite=False, verbose=True):
+        """Save environment to file.
+
+        Examples:
+            >>> env.save('env.pickle')
+            >>> env.save('env.pickle', overwrite=True)
+            >>> env.save('env.pickle', verbose=False)
+        """
+        path = Path(filename).resolve()
+        if path.exists() and not overwrite:
+            print(
+                f'{path} already exists. If you want to overwrite it, call env.save(filename, overwrite=True)'
+            )
+            return
+        with path.open('wb') as file:
+            pickle.dump(self, file)
+        if verbose:
+            print(f'Saved environment to {path}')

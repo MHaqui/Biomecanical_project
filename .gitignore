@@ -1,5 +1,8 @@
 **/tmp
 
+### Environments ###
+*.pickle
+
 ### Models weights ###
 checkpoint
 *.data*
