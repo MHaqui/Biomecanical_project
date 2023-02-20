@@ -65,6 +65,21 @@ class CustomAcrobot(AcrobotEnv):
 
         Raises:
             ValueError: When parameters passed don't match.
+
+        Examples:
+            Classic Acrobot.
+            >>> env = CustomAcrobot()
+
+            Simplified state + actions from -1 to 1 in .5 steps + reward function is the sum of angular speeds only if terminated.
+            >>> env = CustomAcrobot(simplified_state=True,
+                                    reward_func=lambda state, terminated: np.sum(state[-2:]) if terminated else -1
+                                    actions_array=np.arange(-1, 1 + .5, .5))
+
+            Continuous actions from -2 to 2 + environment is done if theta1 is between -pi/2 and pi/2.
+            >>> env = CustomAcrobot(render_mode="human",
+                                    continuous_actions=True,
+                                    continuous_actions_boundary=.5,
+                                    terminal_func=lambda state: np.abs(state[0]) < np.pi/2)
         """
         super().__init__(render_mode)
         self.simplified_state = simplified_state
